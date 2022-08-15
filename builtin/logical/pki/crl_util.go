@@ -573,7 +573,7 @@ func getRevokedCertEntries(ctx context.Context, req *logical.Request, issuerIDCe
 // Builds a CRL by going through the list of revoked certificates and building
 // a new CRL with the stored revocation times and serial numbers.
 func buildCRL(sc *storageContext, forceNew bool, thisIssuerId issuerID, revoked []pkix.RevokedCertificate, identifier crlID, crlNumber int64) error {
-	crlInfo, err := sc.Backend.CRL(sc.Context, sc.Storage)
+	crlInfo, err := sc.getRevocationConfig()
 	if err != nil {
 		return errutil.InternalError{Err: fmt.Sprintf("error fetching CRL config information: %s", err)}
 	}
