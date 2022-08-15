@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	atomic2 "go.uber.org/atomic"
+
 	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/armon/go-metrics"
@@ -84,6 +86,8 @@ func Backend(conf *logical.BackendConfig) *backend {
 				"issuer/+/der",
 				"issuer/+/json",
 				"issuers",
+				"ocsp",   // OCSP POST
+				"ocsp/*", // OCSP GET
 			},
 
 			LocalStorage: []string{
@@ -156,6 +160,10 @@ func Backend(conf *logical.BackendConfig) *backend {
 			pathFetchValidRaw(&b),
 			pathFetchValid(&b),
 			pathFetchListCerts(&b),
+
+			// OCSP APIs
+			buildPathOcspGet(&b),
+			buildPathOcspPost(&b),
 		},
 
 		Secrets: []*framework.Secret{
@@ -177,6 +185,7 @@ func Backend(conf *logical.BackendConfig) *backend {
 	b.pkiStorageVersion.Store(0)
 
 	b.crlBuilder = &crlBuilder{}
+	b.isOcspDisabled = atomic2.NewBool(false)
 	return &b
 }
 
@@ -197,6 +206,9 @@ type backend struct {
 
 	// Write lock around issuers and keys.
 	issuersLock sync.RWMutex
+
+	// Optimization to not read the CRL config on every OCSP request.
+	isOcspDisabled *atomic2.Bool
 }
 
 type (
@@ -293,6 +305,9 @@ func (b *backend) metricsWrap(callType string, roleMode int, ofunc roleOperation
 
 // initialize is used to perform a possible PKI storage migration if needed
 func (b *backend) initialize(ctx context.Context, _ *logical.InitializationRequest) error {
+	// load ocsp enabled status
+	setOcspStatus(b, ctx)
+
 	// Grab the lock prior to the updating of the storage lock preventing us flipping
 	// the storage flag midway through the request stream of other requests.
 	b.issuersLock.Lock()
@@ -316,6 +331,14 @@ func (b *backend) initialize(ctx context.Context, _ *logical.InitializationReque
 	b.updatePkiStorageVersion(ctx, false)
 
 	return nil
+}
+
+func setOcspStatus(b *backend, ctx context.Context) {
+	sc := b.makeStorageContext(ctx, b.storage)
+	config, err := sc.getRevocationConfig()
+	if config != nil && err == nil {
+		b.isOcspDisabled.Store(config.OcspDisable)
+	}
 }
 
 func (b *backend) useLegacyBundleCaStorage() bool {
@@ -371,6 +394,9 @@ func (b *backend) invalidate(ctx context.Context, key string) {
 		} else {
 			b.Logger().Debug("Ignoring invalidation updates for issuer as the PKI migration has yet to complete.")
 		}
+	case key == "config/crl":
+		// We may need to reload our OCSP status flag
+		setOcspStatus(b, ctx)
 	}
 }
 
