@@ -235,13 +235,24 @@ func revokeCert(ctx context.Context, b *backend, req *logical.Request, serial st
 		}
 	}
 
-	crlErr := b.crlBuilder.rebuild(ctx, b, req, false)
-	if crlErr != nil {
-		switch crlErr.(type) {
-		case errutil.UserError:
-			return logical.ErrorResponse(fmt.Sprintf("Error during CRL building: %s", crlErr)), nil
-		default:
-			return nil, fmt.Errorf("error encountered during CRL building: %w", crlErr)
+	// Fetch the config and see if we need to rebuild the CRL. If we have
+	// auto building enabled, we will wait for the next rebuild period to
+	// actually rebuild it.
+	sc := b.makeStorageContext(ctx, req.Storage)
+	config, err := sc.getRevocationConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	if !config.AutoRebuild {
+		crlErr := b.crlBuilder.rebuild(ctx, b, req, false)
+		if crlErr != nil {
+			switch crlErr.(type) {
+			case errutil.UserError:
+				return logical.ErrorResponse(fmt.Sprintf("Error during CRL building: %s", crlErr)), nil
+			default:
+				return nil, fmt.Errorf("error encountered during CRL building: %w", crlErr)
+			}
 		}
 	}
 
