@@ -16,7 +16,7 @@ type crlConfig struct {
 	Disable     bool   `json:"disable"`
 	OcspDisable bool   `json:"ocsp_disable"`
 	AutoRebuild bool `json:"auto_rebuild"`
-	AutoRebuildGracePeriod time.Duration `json:"auto_rebuild_grace_period"`
+	AutoRebuildGracePeriod string `json:"auto_rebuild_grace_period"`
 }
 
 func pathConfigCRL(b *backend) *framework.Path {
@@ -39,7 +39,7 @@ valid; defaults to 72 hours`,
 			},
 			"auto_rebuild": {
 				Type: framework.TypeBool,
-				Description: `If set to true, enables automatic rebuilding of the CRL`
+				Description: `If set to true, enables automatic rebuilding of the CRL`,
 			},
 			"auto_rebuild_grace_period": {
 				Type: framework.TypeDurationSecond,
@@ -148,7 +148,7 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 		gracePeriod, _ := time.ParseDuration(config.AutoRebuildGracePeriod)
 
 		if gracePeriod >= expiry {
-			return logical.ErrorResponse(fmt.Sprintf("CRL auto-rebuilding grace period (%v) must be strictly shorter than CRL expiry (%v) value when auto-rebuilding of CRLs is enabled", config.AutoRebuildGracePeriod, config.Expiry))
+			return logical.ErrorResponse(fmt.Sprintf("CRL auto-rebuilding grace period (%v) must be strictly shorter than CRL expiry (%v) value when auto-rebuilding of CRLs is enabled", config.AutoRebuildGracePeriod, config.Expiry)), nil
 		}
 	}
 
