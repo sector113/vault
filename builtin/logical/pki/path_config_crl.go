@@ -97,6 +97,8 @@ func (b *backend) pathCRLRead(ctx context.Context, req *logical.Request, _ *fram
 			"expiry":       config.Expiry,
 			"disable":      config.Disable,
 			"ocsp_disable": config.OcspDisable,
+			"auto_rebuild": config.AutoRebuild,
+			"auto_rebuild_grace_period": config.AutoRebuildGracePeriod,
 		},
 	}, nil
 }
@@ -127,6 +129,27 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 	if ocspDisableRaw, ok := d.GetOk("ocsp_disable"); ok {
 		oldOcspDisable = config.OcspDisable
 		config.OcspDisable = ocspDisableRaw.(bool)
+	}
+
+	if autoRebuildRaw, ok := d.GetOk("auto_rebuild"); ok {
+		config.AutoRebuild = autoRebuildRaw.(bool)
+	}
+
+	if autoRebuildGracePeriodRaw, ok := d.GetOk("auto_rebuild_grace_period"); ok {
+		autoRebuildGracePeriod := autoRebuildGracePeriodRaw.(string)
+		if _, err := time.ParseDuration(autoRebuildGracePeriod); err != nil {
+			return logical.ErrorResponse(fmt.Sprintf("given auto_rebuild_grace_period could not be decoded: %s", err)), nil
+		}
+		config.AutoRebuildGracePeriod = autoRebuildGracePeriod
+	}
+
+	if config.AutoRebuild {
+		expiry, _ := time.ParseDuration(config.Expiry)
+		gracePeriod, _ := time.ParseDuration(config.AutoRebuildGracePeriod)
+
+		if gracePeriod >= expiry {
+			return logical.ErrorResponse(fmt.Sprintf("CRL auto-rebuilding grace period (%v) must be strictly shorter than CRL expiry (%v) value when auto-rebuilding of CRLs is enabled", config.AutoRebuildGracePeriod, config.Expiry))
+		}
 	}
 
 	entry, err := logical.StorageEntryJSON("config/crl", config)
