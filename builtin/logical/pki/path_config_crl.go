@@ -12,11 +12,20 @@ import (
 
 // CRLConfig holds basic CRL configuration information
 type crlConfig struct {
-	Expiry      string `json:"expiry"`
-	Disable     bool   `json:"disable"`
-	OcspDisable bool   `json:"ocsp_disable"`
-	AutoRebuild bool `json:"auto_rebuild"`
+	Expiry                 string `json:"expiry"`
+	Disable                bool   `json:"disable"`
+	OcspDisable            bool   `json:"ocsp_disable"`
+	AutoRebuild            bool   `json:"auto_rebuild"`
 	AutoRebuildGracePeriod string `json:"auto_rebuild_grace_period"`
+}
+
+// Implicit default values for the config if it does not exist.
+var defaultCrlConfig = crlConfig{
+	Expiry:                 "72h",
+	Disable:                false,
+	OcspDisable:            false,
+	AutoRebuild:            false,
+	AutoRebuildGracePeriod: "12h",
 }
 
 func pathConfigCRL(b *backend) *framework.Path {
@@ -38,13 +47,13 @@ valid; defaults to 72 hours`,
 				Description: `If set to true, ocsp unauthorized responses will be returned.`,
 			},
 			"auto_rebuild": {
-				Type: framework.TypeBool,
+				Type:        framework.TypeBool,
 				Description: `If set to true, enables automatic rebuilding of the CRL`,
 			},
 			"auto_rebuild_grace_period": {
-				Type: framework.TypeDurationSecond,
+				Type:        framework.TypeDurationSecond,
 				Description: `The time before the CRL expires to automatically rebuild it, when enabled. Must be shorter than the CRL expiry. Defaults to 12h.`,
-				Default: "12h",
+				Default:     "12h",
 			},
 		},
 
@@ -65,26 +74,6 @@ valid; defaults to 72 hours`,
 	}
 }
 
-func (b *backend) CRL(ctx context.Context, s logical.Storage) (*crlConfig, error) {
-	entry, err := s.Get(ctx, "config/crl")
-	if err != nil {
-		return nil, err
-	}
-
-	var result crlConfig
-	result.Expiry = b.crlLifetime.String()
-
-	if entry == nil {
-		return &result, nil
-	}
-
-	if err := entry.DecodeJSON(&result); err != nil {
-		return nil, err
-	}
-
-	return &result, nil
-}
-
 func (b *backend) pathCRLRead(ctx context.Context, req *logical.Request, _ *framework.FieldData) (*logical.Response, error) {
 	sc := b.makeStorageContext(ctx, req.Storage)
 	config, err := sc.getRevocationConfig()
@@ -94,10 +83,10 @@ func (b *backend) pathCRLRead(ctx context.Context, req *logical.Request, _ *fram
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"expiry":       config.Expiry,
-			"disable":      config.Disable,
-			"ocsp_disable": config.OcspDisable,
-			"auto_rebuild": config.AutoRebuild,
+			"expiry":                    config.Expiry,
+			"disable":                   config.Disable,
+			"ocsp_disable":              config.OcspDisable,
+			"auto_rebuild":              config.AutoRebuild,
 			"auto_rebuild_grace_period": config.AutoRebuildGracePeriod,
 		},
 	}, nil
@@ -125,9 +114,7 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 		config.Disable = disableRaw.(bool)
 	}
 
-	var oldOcspDisable bool
 	if ocspDisableRaw, ok := d.GetOk("ocsp_disable"); ok {
-		oldOcspDisable = config.OcspDisable
 		config.OcspDisable = ocspDisableRaw.(bool)
 	}
 
@@ -161,6 +148,9 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 		return nil, err
 	}
 
+	b.crlBuilder.markConfigDirty()
+	b.crlBuilder.reloadConfigIfRequired(sc)
+
 	if oldDisable != config.Disable {
 		// It wasn't disabled but now it is, rotate
 		crlErr := b.crlBuilder.rebuild(ctx, b, req, true)
@@ -172,10 +162,6 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 				return nil, fmt.Errorf("error encountered during CRL building: %w", crlErr)
 			}
 		}
-	}
-
-	if oldOcspDisable != config.OcspDisable {
-		setOcspStatus(b, ctx)
 	}
 
 	return nil, nil

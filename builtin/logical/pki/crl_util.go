@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	atomic2 "go.uber.org/atomic"
+
 	"github.com/hashicorp/vault/sdk/helper/consts"
 
 	"github.com/hashicorp/vault/sdk/helper/errutil"
@@ -33,15 +35,76 @@ type revocationInfo struct {
 // without the actual API calls. During the storage invalidation process, we do not have the required state
 // to actually rebuild the CRLs, so we need to schedule it in a deferred fashion. This allows either
 // read or write calls to perform the operation if required, or have the flag reset upon a write operation
+//
+// The CRL builder also tracks the revocation configuration.
 type crlBuilder struct {
 	m            sync.Mutex
 	forceRebuild uint32
+
+	c      sync.RWMutex
+	dirty  *atomic2.Bool
+	config crlConfig
 }
 
 const (
 	_ignoreForceFlag  = true
 	_enforceForceFlag = false
 )
+
+func newCRLBuilder() *crlBuilder {
+	return &crlBuilder{
+		dirty:  atomic2.NewBool(true),
+		config: defaultCrlConfig,
+	}
+}
+
+func (cb *crlBuilder) markConfigDirty() {
+	cb.dirty.Store(true)
+}
+
+func (cb *crlBuilder) reloadConfigIfRequired(sc *storageContext) error {
+	if cb.dirty.Load() {
+		// Acquire a write lock.
+		cb.c.Lock()
+		defer cb.c.Unlock()
+
+		config, err := sc.getRevocationConfig()
+		if err != nil {
+			return err
+		}
+
+		// Set the default config if none was returned to us.
+		if config != nil {
+			cb.config = *config
+		} else {
+			cb.config = defaultCrlConfig
+		}
+
+		// Updated the config; unset dirty.
+		cb.dirty.Store(false)
+	}
+
+	return nil
+}
+
+func (cb *crlBuilder) GetConfig() *crlConfig {
+	// Config may mutate immediately after accessing!
+	cb.c.RLock()
+	defer cb.c.RUnlock()
+
+	configCopy := cb.config
+	return &configCopy
+}
+
+func (cb *crlBuilder) GetConfigWithUpdate(sc *storageContext) (*crlConfig, error) {
+	// Config may mutate immediately after accessing, but will be freshly
+	// fetched if necessary.
+	if err := cb.reloadConfigIfRequired(sc); err != nil {
+		return nil, err
+	}
+
+	return cb.GetConfig(), nil
+}
 
 // rebuildIfForced is to be called by readers or periodic functions that might need to trigger
 // a refresh of the CRL before the read occurs.
@@ -238,10 +301,9 @@ func revokeCert(ctx context.Context, b *backend, req *logical.Request, serial st
 	// Fetch the config and see if we need to rebuild the CRL. If we have
 	// auto building enabled, we will wait for the next rebuild period to
 	// actually rebuild it.
-	sc := b.makeStorageContext(ctx, req.Storage)
-	config, err := sc.getRevocationConfig()
+	config, err := b.crlBuilder.GetConfigWithUpdate(sc)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error building CRL: while updating config: %v", err)
 	}
 
 	if !config.AutoRebuild {
@@ -298,6 +360,13 @@ func buildCRLs(ctx context.Context, b *backend, req *logical.Request, forceNew b
 	var issuers []issuerID
 	var wasLegacy bool
 	sc := b.makeStorageContext(ctx, req.Storage)
+
+	// First, fetch an updated copy of the CRL config. We'll pass this into
+	// buildCRL.
+	globalCRLConfig, err := b.crlBuilder.GetConfigWithUpdate(sc)
+	if err != nil {
+		return fmt.Errorf("error building CRL: while updating config: %v", err)
+	}
 
 	if !b.useLegacyBundleCaStorage() {
 		issuers, err = sc.listIssuers()
@@ -427,7 +496,7 @@ func buildCRLs(ctx context.Context, b *backend, req *logical.Request, forceNew b
 			crlConfig.CRLNumberMap[crlIdentifier] += 1
 
 			// Lastly, build the CRL.
-			if err := buildCRL(sc, forceNew, representative, revokedCerts, crlIdentifier, crlNumber); err != nil {
+			if err := buildCRL(sc, globalCRLConfig, forceNew, representative, revokedCerts, crlIdentifier, crlNumber); err != nil {
 				return fmt.Errorf("error building CRLs: unable to build CRL for issuer (%v): %v", representative, err)
 			}
 		}
@@ -583,21 +652,12 @@ func getRevokedCertEntries(ctx context.Context, req *logical.Request, issuerIDCe
 
 // Builds a CRL by going through the list of revoked certificates and building
 // a new CRL with the stored revocation times and serial numbers.
-func buildCRL(sc *storageContext, forceNew bool, thisIssuerId issuerID, revoked []pkix.RevokedCertificate, identifier crlID, crlNumber int64) error {
-	crlInfo, err := sc.getRevocationConfig()
-	if err != nil {
-		return errutil.InternalError{Err: fmt.Sprintf("error fetching CRL config information: %s", err)}
-	}
-
-	crlLifetime := sc.Backend.crlLifetime
+func buildCRL(sc *storageContext, crlInfo *crlConfig, forceNew bool, thisIssuerId issuerID, revoked []pkix.RevokedCertificate, identifier crlID, crlNumber int64) error {
 	var revokedCerts []pkix.RevokedCertificate
 
-	if crlInfo.Expiry != "" {
-		crlDur, err := time.ParseDuration(crlInfo.Expiry)
-		if err != nil {
-			return errutil.InternalError{Err: fmt.Sprintf("error parsing CRL duration of %s", crlInfo.Expiry)}
-		}
-		crlLifetime = crlDur
+	crlLifetime, err := time.ParseDuration(crlInfo.Expiry)
+	if err != nil {
+		return errutil.InternalError{Err: fmt.Sprintf("error parsing CRL duration of %s", crlInfo.Expiry)}
 	}
 
 	if crlInfo.Disable {

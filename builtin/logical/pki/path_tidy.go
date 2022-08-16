@@ -232,7 +232,7 @@ func (b *backend) pathTidyWrite(ctx context.Context, req *logical.Request, d *fr
 					sc := b.makeStorageContext(ctx, req.Storage)
 					config, err := sc.getRevocationConfig()
 					if err != nil {
-						return nil, err
+						return err
 					}
 
 					if !config.AutoRebuild {

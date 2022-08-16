@@ -96,7 +96,7 @@ func buildPathOcspPost(b *backend) *framework.Path {
 }
 
 func (b *backend) ocspHandler(ctx context.Context, request *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	if b.isOcspDisabled.Load() {
+	if b.crlBuilder.GetConfig().OcspDisable {
 		return OcspUnauthorizedResponse, nil
 	}
 
