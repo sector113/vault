@@ -395,6 +395,11 @@ func (b *backend) periodicFunc(ctx context.Context, request *logical.Request) er
 		return err
 	}
 
+	// Check if we're set to auto rebuild and a CRL is set to expire.
+	if err := b.crlBuilder.checkForAutoRebuild(sc); err != nil {
+		return err
+	}
+
 	// Then attempt to rebuild the CRLs if required.
 	if err := b.crlBuilder.rebuildIfForced(ctx, b, request); err != nil {
 		return err
