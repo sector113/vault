@@ -15,6 +15,8 @@ type crlConfig struct {
 	Expiry      string `json:"expiry"`
 	Disable     bool   `json:"disable"`
 	OcspDisable bool   `json:"ocsp_disable"`
+	AutoRebuild bool `json:"auto_rebuild"`
+	AutoRebuildGracePeriod time.Duration `json:"auto_rebuild_grace_period"`
 }
 
 func pathConfigCRL(b *backend) *framework.Path {
@@ -35,6 +37,15 @@ valid; defaults to 72 hours`,
 				Type:        framework.TypeBool,
 				Description: `If set to true, ocsp unauthorized responses will be returned.`,
 			},
+			"auto_rebuild": {
+				Type: framework.TypeBool,
+				Description: `If set to true, enables automatic rebuilding of the CRL`
+			},
+			"auto_rebuild_grace_period": {
+				Type: framework.TypeDurationSecond,
+				Description: `The time before the CRL expires to automatically rebuild it, when enabled. Must be shorter than the CRL expiry. Defaults to 12h.`,
+				Default: "12h",
+			},
 		},
 
 		Operations: map[logical.Operation]framework.OperationHandler{
@@ -52,6 +63,26 @@ valid; defaults to 72 hours`,
 		HelpSynopsis:    pathConfigCRLHelpSyn,
 		HelpDescription: pathConfigCRLHelpDesc,
 	}
+}
+
+func (b *backend) CRL(ctx context.Context, s logical.Storage) (*crlConfig, error) {
+	entry, err := s.Get(ctx, "config/crl")
+	if err != nil {
+		return nil, err
+	}
+
+	var result crlConfig
+	result.Expiry = b.crlLifetime.String()
+
+	if entry == nil {
+		return &result, nil
+	}
+
+	if err := entry.DecodeJSON(&result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 func (b *backend) pathCRLRead(ctx context.Context, req *logical.Request, _ *framework.FieldData) (*logical.Response, error) {
