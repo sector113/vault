@@ -108,9 +108,8 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 		config.Expiry = expiry
 	}
 
-	var oldDisable bool
+	oldDisable := config.Disable
 	if disableRaw, ok := d.GetOk("disable"); ok {
-		oldDisable = config.Disable
 		config.Disable = disableRaw.(bool)
 	}
 
@@ -118,6 +117,7 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 		config.OcspDisable = ocspDisableRaw.(bool)
 	}
 
+	oldAutoRebuild := config.AutoRebuild
 	if autoRebuildRaw, ok := d.GetOk("auto_rebuild"); ok {
 		config.AutoRebuild = autoRebuildRaw.(bool)
 	}
@@ -151,8 +151,9 @@ func (b *backend) pathCRLWrite(ctx context.Context, req *logical.Request, d *fra
 	b.crlBuilder.markConfigDirty()
 	b.crlBuilder.reloadConfigIfRequired(sc)
 
-	if oldDisable != config.Disable {
-		// It wasn't disabled but now it is, rotate
+	if oldDisable != config.Disable || (oldAutoRebuild && !config.AutoRebuild) {
+		// It wasn't disabled but now it is (or equivalently, we were set to
+		// auto-rebuild and we aren't now), so rotate the CRL.
 		crlErr := b.crlBuilder.rebuild(ctx, b, req, true)
 		if crlErr != nil {
 			switch crlErr.(type) {
