@@ -120,10 +120,10 @@ func (cb *crlBuilder) checkForAutoRebuild(sc *storageContext) error {
 	//
 	// We store a list of all (unique) CRLs in the cluster-local CRL
 	// configuration along with their expiration dates.
-    crlConfig, err := sc.getLocalCRLConfig()
-    if err != nil {
-        return fmt.Errorf("error checking for auto-rebuild status: unable to fetch cluster-local CRL configuration: %v", err)
-    }
+	crlConfig, err := sc.getLocalCRLConfig()
+	if err != nil {
+		return fmt.Errorf("error checking for auto-rebuild status: unable to fetch cluster-local CRL configuration: %v", err)
+	}
 
 	// If there's no config, assume we've gotta rebuild it to get this
 	// information.
@@ -157,7 +157,7 @@ func (cb *crlBuilder) checkForAutoRebuild(sc *storageContext) error {
 	}
 
 	for _, value := range crlConfig.CRLExpirationMap {
-		if value.IsZero() || now.After(value.Add(-1 * period)) {
+		if value.IsZero() || now.After(value.Add(-1*period)) {
 			atomic.CompareAndSwapUint32(&cb.forceRebuild, 0, 1)
 			return nil
 		}
