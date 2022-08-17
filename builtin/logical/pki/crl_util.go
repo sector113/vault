@@ -223,7 +223,7 @@ func (cb *crlBuilder) _doRebuild(ctx context.Context, b *backend, request *logic
 }
 
 func (cb *crlBuilder) clearDeltaWAL(sc *storageContext) error {
-	// Clearing of the delta WAL occurs after a new canonical CRL has been built.
+	// Clearing of the delta WAL occurs after a new complete CRL has been built.
 	walSerials, err := sc.Storage.List(sc.Context, deltaWALPath)
 	if err != nil {
 		return fmt.Errorf("error fetching list of delta WAL certificates to clear: %s", err)
@@ -630,7 +630,7 @@ func buildAnyCRLs(sc *storageContext, forceNew bool, isDelta bool) error {
 
 			// CRLs (regardless of complete vs delta) are incrementally
 			// numbered. But delta CRLs need to know the number of the
-			// last canonical CRL. We assume that's the previous identifier
+			// last complete CRL. We assume that's the previous identifier
 			// if no value presently exists.
 			lastCompleteNumber, haveLast := crlConfig.LastCompleteNumberMap[crlIdentifier]
 			if !haveLast {
