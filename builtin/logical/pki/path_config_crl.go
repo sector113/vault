@@ -17,8 +17,8 @@ type crlConfig struct {
 	OcspDisable            bool   `json:"ocsp_disable"`
 	AutoRebuild            bool   `json:"auto_rebuild"`
 	AutoRebuildGracePeriod string `json:"auto_rebuild_grace_period"`
-	EnableDelta bool `json:"enable_delta"`
-	DeltaRebuildInterval string `json:"delta_rebuild_interval"`
+	EnableDelta            bool   `json:"enable_delta"`
+	DeltaRebuildInterval   string `json:"delta_rebuild_interval"`
 }
 
 // Implicit default values for the config if it does not exist.
@@ -60,13 +60,13 @@ valid; defaults to 72 hours`,
 				Default:     "12h",
 			},
 			"enable_delta": {
-				Type: framework.TypeBool,
+				Type:        framework.TypeBool,
 				Description: `Whether to enable delta CRLs between authoritative CRL rebuilds`,
 			},
 			"delta_rebuild_interval": {
-				Type: framework.TypeDurationSecond,
+				Type:        framework.TypeDurationSecond,
 				Description: `The time between delta CRL rebuilds if a new revocation has occurred. Must be shorter than the CRL expiry. Defaults to 15m.`,
-				Default: "15m",
+				Default:     "15m",
 			},
 		},
 
@@ -101,8 +101,8 @@ func (b *backend) pathCRLRead(ctx context.Context, req *logical.Request, _ *fram
 			"ocsp_disable":              config.OcspDisable,
 			"auto_rebuild":              config.AutoRebuild,
 			"auto_rebuild_grace_period": config.AutoRebuildGracePeriod,
-			"enable_delta": config.EnableDelta,
-			"delta_rebuild_interval": config.DeltaRebuildInterval,
+			"enable_delta":              config.EnableDelta,
+			"delta_rebuild_interval":    config.DeltaRebuildInterval,
 		},
 	}, nil
 }
