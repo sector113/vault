@@ -888,7 +888,7 @@ WRITE:
 		writePath = legacyCRLPath
 	} else if isDelta {
 		// Write the delta CRL to a unique storage location.
-		writePath += "-delta"
+		writePath += deltaCRLPathSuffix
 	}
 
 	err = sc.Storage.Put(sc.Context, &logical.StorageEntry{

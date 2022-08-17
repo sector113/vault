@@ -25,6 +25,8 @@ const (
 	legacyMigrationBundleLogKey = "config/legacyMigrationBundleLog"
 	legacyCertBundlePath        = "config/ca_bundle"
 	legacyCRLPath               = "crl"
+	deltaCRLPath                = "delta-crl"
+	deltaCRLPathSuffix          = "-delta"
 
 	// Used as a quick sanity check for a reference id lookups...
 	uuidLength = 36
