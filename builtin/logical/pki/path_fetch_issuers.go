@@ -707,7 +707,7 @@ the certificate.
 )
 
 func pathGetIssuerCRL(b *backend) *framework.Path {
-	pattern := "issuer/" + framework.GenericNameRegex(issuerRefParam) + "/crl(/pem|/der)?"
+	pattern := "issuer/" + framework.GenericNameRegex(issuerRefParam) + "/crl(/pem|/der|/delta(/pem|/der)?)?"
 	return buildPathGetIssuerCRL(b, pattern)
 }
 
@@ -749,6 +749,10 @@ func (b *backend) pathGetIssuerCRL(ctx context.Context, req *logical.Request, da
 	crlPath, err := sc.resolveIssuerCRLPath(issuerName)
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.Contains(req.Path, "delta") {
+		crlPath += deltaCRLPathSuffix
 	}
 
 	crlEntry, err := req.Storage.Get(ctx, crlPath)
