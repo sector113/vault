@@ -383,6 +383,8 @@ func revokeCert(ctx context.Context, b *backend, req *logical.Request, serial st
 				return nil, fmt.Errorf("error encountered during CRL building: %w", crlErr)
 			}
 		}
+	} else {
+		// Regardless of whether or not
 	}
 
 	resp := &logical.Response{
