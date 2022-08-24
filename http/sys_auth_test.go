@@ -88,7 +88,7 @@ func TestSysEnableAuth(t *testing.T) {
 	TestServerAuth(t, addr, token)
 
 	resp := testHttpPost(t, token, addr+"/v1/sys/auth/foo", map[string]interface{}{
-		"type":        "noop",
+		"type":        "approle",
 		"description": "foo",
 	})
 	testResponseStatus(t, resp, 204)
@@ -106,7 +106,7 @@ func TestSysEnableAuth(t *testing.T) {
 		"data": map[string]interface{}{
 			"foo/": map[string]interface{}{
 				"description":             "foo",
-				"type":                    "noop",
+				"type":                    "approle",
 				"external_entropy_access": false,
 				"config": map[string]interface{}{
 					"default_lease_ttl": json.Number("0"),
@@ -114,9 +114,10 @@ func TestSysEnableAuth(t *testing.T) {
 					"token_type":        "default-service",
 					"force_no_cache":    false,
 				},
-				"local":     false,
-				"seal_wrap": false,
-				"options":   map[string]interface{}{},
+				"deprecation_status": "supported",
+				"local":              false,
+				"seal_wrap":          false,
+				"options":            map[string]interface{}{},
 			},
 			"token/": map[string]interface{}{
 				"description":             "token based credentials",
@@ -135,7 +136,7 @@ func TestSysEnableAuth(t *testing.T) {
 		},
 		"foo/": map[string]interface{}{
 			"description":             "foo",
-			"type":                    "noop",
+			"type":                    "approle",
 			"external_entropy_access": false,
 			"config": map[string]interface{}{
 				"default_lease_ttl": json.Number("0"),
@@ -143,9 +144,10 @@ func TestSysEnableAuth(t *testing.T) {
 				"token_type":        "default-service",
 				"force_no_cache":    false,
 			},
-			"local":     false,
-			"seal_wrap": false,
-			"options":   map[string]interface{}{},
+			"deprecation_status": "supported",
+			"local":              false,
+			"seal_wrap":          false,
+			"options":            map[string]interface{}{},
 		},
 		"token/": map[string]interface{}{
 			"description":             "token based credentials",
@@ -172,6 +174,12 @@ func TestSysEnableAuth(t *testing.T) {
 		}
 		if v.(map[string]interface{})["uuid"] == "" {
 			t.Fatalf("no uuid from %s", k)
+		}
+		if _, ok := expected[k].(map[string]interface{})["deprecation_status"]; ok {
+			expected[k].(map[string]interface{})["deprecation_status"] = v.(map[string]interface{})["deprecation_status"]
+		}
+		if _, ok := expected["data"].(map[string]interface{})[k].(map[string]interface{})["deprecation_status"]; ok {
+			expected["data"].(map[string]interface{})[k].(map[string]interface{})["deprecation_status"] = v.(map[string]interface{})["deprecation_status"]
 		}
 
 		expected[k].(map[string]interface{})["accessor"] = v.(map[string]interface{})["accessor"]
