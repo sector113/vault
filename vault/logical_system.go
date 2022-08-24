@@ -886,6 +886,12 @@ func (b *SystemBackend) handleMountTable(ctx context.Context, req *logical.Reque
 
 		// Populate mount info
 		info := mountInfo(entry)
+
+		// Add deprecation status
+		pluginType, _ := b.Core.pluginTypeFromMountEntry(ctx, entry)
+		status, _ := b.Core.builtinRegistry.DeprecationStatus(entry.Type, pluginType)
+		info["deprecation_status"] = status.String()
+
 		resp.Data[entry.Path] = info
 	}
 
@@ -2069,6 +2075,10 @@ func (b *SystemBackend) handleAuthTable(ctx context.Context, req *logical.Reques
 		}
 
 		info := mountInfo(entry)
+		status, ok := b.Core.builtinRegistry.DeprecationStatus(entry.Type, consts.PluginTypeCredential)
+		if ok {
+			info["deprecation_status"] = status.String()
+		}
 		resp.Data[entry.Path] = info
 	}
 

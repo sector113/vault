@@ -281,6 +281,7 @@ type MountOutput struct {
 	Local                 bool              `json:"local"`
 	SealWrap              bool              `json:"seal_wrap" mapstructure:"seal_wrap"`
 	ExternalEntropyAccess bool              `json:"external_entropy_access" mapstructure:"external_entropy_access"`
+	DeprecationStatus     string            `json:"deprecation_status" mapstructure:"deprecation_status"`
 }
 
 type MountConfigOutput struct {
