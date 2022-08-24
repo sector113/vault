@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	testing2 "testing"
 	"time"
 
 	"github.com/armon/go-metrics"
@@ -2347,4 +2348,38 @@ func RetryUntil(t testing.T, timeout time.Duration, f func() error) {
 		time.Sleep(100 * time.Millisecond)
 	}
 	t.Fatalf("did not complete before deadline, err: %v", err)
+}
+
+// MakeTestPluginDir creates a temporary directory suitable for holding plugins.
+// This helper also resolves symlinks to make tests happy on OS X.
+func MakeTestPluginDir(tb testing2.TB) (string, func(tb testing2.TB)) {
+	if tb != nil {
+		tb.Helper()
+	}
+
+	dir, err := os.MkdirTemp("", "")
+	if err != nil {
+		if tb == nil {
+			panic(err)
+		}
+		tb.Fatal(err)
+	}
+
+	// OSX tempdir are /var, but actually symlinked to /private/var
+	dir, err = filepath.EvalSymlinks(dir)
+	if err != nil {
+		if tb == nil {
+			panic(err)
+		}
+		tb.Fatal(err)
+	}
+
+	return dir, func(tb testing2.TB) {
+		if err := os.RemoveAll(dir); err != nil {
+			if tb == nil {
+				panic(err)
+			}
+			tb.Fatal(err)
+		}
+	}
 }
