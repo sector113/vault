@@ -129,7 +129,13 @@ func (s ServiceURL) URL() *url.URL {
 // connection string (typically a URL) and nil, or empty string and an error.
 type ServiceAdapter func(ctx context.Context, host string, port int) (ServiceConfig, error)
 
-func (d *Runner) StartService(ctx context.Context, addSuffix bool, connect ServiceAdapter) (*Service, string, error) {
+func (d *Runner) StartService(ctx context.Context, connect ServiceAdapter) (*Service, error) {
+	serv, _, err := d.StartServiceCore(ctx, true, connect)
+
+	return serv, err
+}
+
+func (d *Runner) StartServiceCore(ctx context.Context, addSuffix bool, connect ServiceAdapter) (*Service, string, error) {
 	container, hostIPs, containerID, err := d.Start(context.Background(), addSuffix)
 	if err != nil {
 		return nil, "", err

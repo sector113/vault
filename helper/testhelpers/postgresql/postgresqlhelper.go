@@ -64,7 +64,7 @@ func prepareTestContainer(t *testing.T, name, repo, version, password, db string
 		t.Fatalf("Could not start docker Postgres: %s", err)
 	}
 
-	svc, containerID, err := runner.StartService(context.Background(), addSuffix, connectPostgres(password))
+	svc, containerID, err := runner.StartServiceCore(context.Background(), addSuffix, connectPostgres(password))
 	if err != nil {
 		t.Fatalf("Could not start docker Postgres: %s", err)
 	}
